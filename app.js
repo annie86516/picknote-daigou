@@ -1,5 +1,5 @@
 import { summarizeBuyers } from "./summary.js";
-import { manage, formPayload, setAdminKey, rememberAdmin, hasAdminKey, isAdminRemembered, forgetAdmin } from "./shared.js";
+import { manage, formPayload, setAdminKey, rememberAdmin, hasAdminKey, isAdminRemembered, forgetAdmin } from "./shared.js?v=20261105-2";
 const $ = id => document.getElementById(id);
 let items = [], state = "all", previewUrl = "", requestId = crypto.randomUUID(), loaded = false;
 const media = "/api/items/";

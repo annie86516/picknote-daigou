@@ -1,4 +1,4 @@
-import { rpc, formPayload } from "./shared.js";
+import { rpc, formPayload } from "./shared.js?v=20261105-2";
 const $=id=>document.getElementById(id);
 const code=location.hash.slice(1);
 let fileURL="",id=crypto.randomUUID();
