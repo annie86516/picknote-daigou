@@ -2,6 +2,8 @@ create table public.picknote_boards (
   id uuid primary key,
   admin_hash text not null,
   invite_code text not null unique,
+  shared_editing boolean not null default false,
+  amount_password_hash text,
   created_at timestamptz not null default now()
 );
 create table public.picknote_items (
@@ -73,8 +75,11 @@ declare
   v_id uuid;
 begin
   select * into v_board from public.picknote_boards
-  where id=p_board and admin_hash=encode(extensions.digest(p_admin,'sha256'),'hex');
-  if not found then raise exception '管理金鑰無效，請使用你的專屬管理連結'; end if;
+  where id=p_board and (
+    admin_hash=encode(extensions.digest(p_admin,'sha256'),'hex')
+    or (shared_editing and invite_code=p_admin)
+  );
+  if not found then raise exception '共用清單憑證無效，請使用最新版 HTML'; end if;
   if p_action='list' then
     return coalesce((select jsonb_agg(public.picknote_item_json(i) order by i.created_at desc) from public.picknote_items i where board_id=p_board),'[]'::jsonb);
   elsif p_action='invite' then
@@ -110,6 +115,16 @@ begin
     if p_data ? 'actualAmount' and p_data->'actualAmount' <> 'null'::jsonb
        and (coalesce(p_data->>'actualAmount','') !~ '^[0-9]{1,9}$')
     then raise exception '購買金額需為 0 到 999,999,999 的整數'; end if;
+    -- The row is locked above, so concurrent first fills cannot bypass this check.
+    -- Unchecking a purchase preserves its amount; changing or clearing it is protected.
+    if v_board.amount_password_hash is not null
+       and v_item.actual_amount is not null
+       and p_data ? 'actualAmount'
+       and (p_data->>'actualAmount')::bigint is distinct from v_item.actual_amount
+       and v_board.amount_password_hash is distinct from extensions.crypt(
+         coalesce(p_data->>'amountPassword',''),v_board.amount_password_hash
+       )
+    then raise exception '修改已填購買金額需要正確密碼'; end if;
     update public.picknote_items set done=(p_data->>'done')::boolean,
       actual_amount=case when p_data ? 'actualAmount' then (p_data->>'actualAmount')::bigint else actual_amount end,
       updated_at=clock_timestamp()

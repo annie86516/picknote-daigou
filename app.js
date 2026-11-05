@@ -1,16 +1,17 @@
 import { summarizeBuyers } from "./summary.js";
-import { manage, formPayload, setAdminKey, rememberAdmin, hasAdminKey, isAdminRemembered, forgetAdmin } from "./shared.js?v=20261105-2";
+import { manage, formPayload, hasAdminKey, rememberShared, updateViewUrl } from "./shared.js?v=20261105-shared-2";
 const $ = id => document.getElementById(id);
 let items = [], state = "all", previewUrl = "", requestId = crypto.randomUUID(), loaded = false;
 const media = "/api/items/";
 const money = n => n.toLocaleString("zh-TW");
-let currentView = ["orders", "add", "settlement"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "orders";
+const initialView = new URLSearchParams(location.hash.slice(1)).get("view") || location.hash.slice(1);
+let currentView = ["orders", "add", "settlement"].includes(initialView) ? initialView : "orders";
 function showView(view) {
   currentView = view;
   for (const name of ["orders", "add", "settlement"]) $(name).hidden = name !== view;
   document.querySelector(".workspace").hidden = view === "settlement";
   document.querySelectorAll("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === view)));
-  history.replaceState(null, "", location.pathname + location.search + "#" + view);
+  updateViewUrl(view);
 }
 document.querySelectorAll("[data-view]").forEach(button => button.onclick = () => showView(button.dataset.view));
 showView(currentView);
@@ -130,43 +131,23 @@ async function load() {
     if (revision !== dataRevision) return;
     items = next;
     loaded = true;
+    rememberShared();
     $("unlock-msg").textContent = "";
     $("list-msg").textContent = "";
-    rememberAdmin();
     $("unlock").hidden = true;
     $("top").hidden = false;
     $("admin-nav").hidden = false;
     $("admin-tools").hidden = false;
-    $("device-settings").hidden = false;
-    $("remember-device").checked = isAdminRemembered();
     render();
   } catch (error) {
     if (!loaded) $("unlock-msg").textContent = error.message;
     else $("list-msg").textContent = error.message;
   } finally { loading = false; }
 }
-$("unlock-form").onsubmit = async event => {
-  event.preventDefault();
-  setAdminKey($("admin-key").value);
-  const submit = $("unlock-form").querySelector("button");
-  submit.disabled = true;
-  try {
-    await load();
-    if (loaded) {
-      rememberAdmin($("unlock-remember").checked);
-      $("remember-device").checked = isAdminRemembered();
-    }
-  } finally { submit.disabled = false; }
-};
-$("remember-device").onchange = () => {
-  rememberAdmin($("remember-device").checked);
-  $("remember-device").checked = isAdminRemembered();
-};
-$("sign-out").onclick = () => { forgetAdmin(); location.reload(); };
+$("retry-load").onclick = () => load();
 $("refresh").onclick = async () => {
-  $("refresh").disabled = true;
-  $("refresh").textContent = "更新中…";
-  try { await load(); } finally { $("refresh").disabled = false; $("refresh").textContent = "重新整理"; }
+  $("refresh").disabled=true;$("refresh").textContent="更新中…";
+  try{await load();}finally{$("refresh").disabled=false;$("refresh").textContent="重新整理";}
 };
 document.querySelectorAll("[data-state]").forEach(btn => btn.onclick = () => {
   state = btn.dataset.state; document.querySelectorAll("[data-state]").forEach(el => el.setAttribute("aria-pressed", String(btn === el))); if(loaded) render();
@@ -201,18 +182,21 @@ $("form").onsubmit=async e=>{
     const result = await api("/api/items",{method:"POST",body:data});
     items = [result,...items.filter(x=>x.id!==result.id)]; $("form").reset(); preview(); requestId=crypto.randomUUID();
     $("people").value=""; document.querySelector('[data-state="all"]').click(); render();
-    $("form-msg").textContent="已加入代購清單。"; if(!loaded) await load();
+    $("form-msg").textContent="已加入代購清單。"; $("list-msg").textContent="已加入代購清單，所有人都能查看。"; showView("orders"); if(!loaded) await load();
   } catch(err) { $("form-msg").textContent=err.message; }
   finally { controls.forEach(c=>c.disabled=false); $("submit").textContent="＋ 加入代購清單"; }
 };
-$("rows").textContent="正在載入清單…";load();
+$("rows").textContent="正在載入清單…";
+if(!hasAdminKey()){$("unlock").querySelector("h1").textContent="開啟共用代購手帳";$("unlock-msg").textContent="請從主揪分享的完整共用連結開啟。";}
+load();
 
 $("invite").onclick=async()=>{
-  $("share-url").value="";$("copy").disabled=true;$("share-msg").textContent="正在取得填單連結…";$("share-dialog").showModal();
-  try {const r=await api("/api/invite");$("share-url").value=new URL("buyer.html",location.href).href+"#"+r.code;$("copy").disabled=false;$("share-msg").textContent="";}catch(e){$("share-msg").textContent=e.message;}
+  $("share-url").value="";$("copy").disabled=true;$("share-msg").textContent="正在取得共用連結…";$("share-dialog").showModal();
+  try{const result=await manage("invite");const url=new URL("./",location.href);url.hash=new URLSearchParams({shared:result.code}).toString();$("share-url").value=url.href;$("copy").disabled=false;$("share-msg").textContent="";}catch(error){$("share-msg").textContent=error.message;}
 };
 $("share-close").onclick=()=>$("share-dialog").close();
-$("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("share-url").value);$("share-msg").textContent="已複製填單連結。";}catch{$("share-url").select();$("share-msg").textContent="請複製已選取的連結。";}};
+$("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("share-url").value);$("share-msg").textContent="已複製共用清單連結。";}catch{$("share-url").select();$("share-msg").textContent="請複製已選取的連結。";}};
+
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load();});
 setInterval(()=>{if(document.visibilityState==="visible" && !$("submit").disabled)load();},30000);
 let editing=null,removing=null;
@@ -245,6 +229,8 @@ let paying=null;
 function openPurchase(item){
   paying=item;$("paid-item").textContent=item.buyer+"的「"+(item.name || "商品截圖")+"」 · 預估 NT$ "+money(item.amount);
   $("paid-amount").value=item.actualAmount ?? "";$("paid-msg").textContent="";$("paid-save").textContent=item.done?"儲存金額":"確認已購買";
+  $("paid-password").value="";$("paid-password-wrap").hidden=item.actualAmount==null;
+  $("paid-note").textContent=item.actualAmount==null?"第一次填寫購買金額不需密碼。":"原購買金額 NT$ "+money(item.actualAmount)+"。只有更改或清空金額時才需要密碼。";
   $("paid-dialog").showModal();$("paid-amount").focus();
 }
 async function setPurchased(item,values){
@@ -252,9 +238,15 @@ async function setPurchased(item,values){
   items=items.map(x=>x.id===item.id?{...x,...result}:x);render();
 }
 $("paid-cancel").onclick=()=>$("paid-dialog").close();
+$("paid-dialog").addEventListener("close",()=>{$("paid-password").value="";});
 $("paid-form").onsubmit=async e=>{
   e.preventDefault();const value=$("paid-amount").value;
-  $("paid-save").disabled=true;
-  try {await setPurchased(paying,{done:true,actualAmount:value===""?null:Number(value)});$("paid-dialog").close();$("list-msg").textContent="已更新購買紀錄。";}
-  catch(err){$("paid-msg").textContent=err.message;}finally{$("paid-save").disabled=false;}
+  const nextAmount=value===""?null:Number(value),password=$("paid-password").value;
+  if(paying.actualAmount!=null && nextAmount!==paying.actualAmount && !password){
+    $("paid-password-wrap").hidden=false;$("paid-msg").textContent="修改已填購買金額，請輸入密碼。";$("paid-password").focus();return;
+  }
+  const controls=[...$("paid-form").elements];controls.forEach(c=>c.disabled=true);
+  try {await setPurchased(paying,{done:true,actualAmount:nextAmount,amountPassword:password});$("paid-dialog").close();$("list-msg").textContent="已更新購買紀錄。";}
+  catch(err){$("paid-msg").textContent=err.message;if(err.message.includes("密碼"))$("paid-password-wrap").hidden=false;}
+  finally{controls.forEach(c=>c.disabled=false);$("paid-password").value="";}
 };

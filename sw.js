@@ -1,5 +1,5 @@
 const PREFIX = "picknote-daigou-shell-";
-const CACHE = PREFIX + "v3";
+const CACHE = PREFIX + "v5-shared-link";
 const BASE = new URL("./", self.location.href);
 const FILES = ["index.html", "buyer.html", "styles.css", "maple.css", "app.js", "buyer.js", "shared.js", "summary.js", "ui.js", "config.js", "art.svg", "icon.svg", "icon-192.png", "icon-512.png", "manifest.webmanifest"];
 const allowed = new Set(FILES.map(path => new URL(path, BASE).pathname));

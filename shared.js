@@ -1,35 +1,18 @@
-import { config } from "./config.js";
-
-const storageKey = "picknote-admin-" + config.board;
-function stored(store) {
-  try { return window[store].getItem(storageKey) || ""; } catch { return ""; }
+import { config } from "./config.js?v=20261105-shared-2";
+const storageKey = "picknote-shared-" + config.board;
+const entry = new URLSearchParams(location.hash.slice(1));
+function storedAccess() { try { return localStorage.getItem(storageKey) || ""; } catch { return ""; } }
+const legacyInvite = /^[A-Za-z0-9_-]{32,100}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
+const adminKey = entry.get("shared") || entry.get("admin") || legacyInvite || storedAccess();
+export function hasAdminKey() { return !!adminKey; }
+export function getAccessKey() { return adminKey; }
+export function rememberShared() {
+  try { localStorage.setItem(storageKey, adminKey); } catch {}
+  window.dispatchEvent(new Event("picknote-access-ready"));
 }
-let persistent = !!stored("localStorage");
-let adminKey = new URLSearchParams(location.hash.slice(1)).get("admin") || stored("sessionStorage") || stored("localStorage");
-if (location.hash.startsWith("#admin=")) {
-  history.replaceState(null, "", location.pathname + location.search);
-}
-export function setAdminKey(value) {
-  adminKey = value.trim();
-}
-export function rememberAdmin(keep = persistent) {
-  persistent = keep;
-  try { sessionStorage.setItem(storageKey, adminKey); } catch {}
-  try {
-    if (keep) localStorage.setItem(storageKey, adminKey);
-    else localStorage.removeItem(storageKey);
-  } catch { persistent = false; }
-}
-export const isAdminRemembered = () => persistent;
-export function forgetAdmin() {
-  adminKey = "";
-  persistent = false;
-  for (const store of ["sessionStorage", "localStorage"]) {
-    try { window[store].removeItem(storageKey); } catch {}
-  }
-}
-export function hasAdminKey() {
-  return !!adminKey;
+export function updateViewUrl(view) {
+  const fragment = adminKey ? new URLSearchParams({shared:adminKey,view}).toString() : view;
+  history.replaceState(null,"",location.pathname + location.search + "#" + fragment);
 }
 export async function rpc(name, args) {
   if (!navigator.onLine) throw new Error("目前沒有網路，請連線後再試。填寫內容會保留在此頁。");
