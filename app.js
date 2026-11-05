@@ -1,9 +1,19 @@
 import { summarizeBuyers } from "./summary.js";
-import { manage, formPayload, setAdminKey, rememberAdmin, hasAdminKey } from "./shared.js";
+import { manage, formPayload, setAdminKey, rememberAdmin, hasAdminKey, isAdminRemembered, forgetAdmin } from "./shared.js";
 const $ = id => document.getElementById(id);
 let items = [], state = "all", previewUrl = "", requestId = crypto.randomUUID(), loaded = false;
 const media = "/api/items/";
 const money = n => n.toLocaleString("zh-TW");
+let currentView = ["orders", "add", "settlement"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "orders";
+function showView(view) {
+  currentView = view;
+  for (const name of ["orders", "add", "settlement"]) $(name).hidden = name !== view;
+  document.querySelector(".workspace").hidden = view === "settlement";
+  document.querySelectorAll("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === view)));
+  history.replaceState(null, "", location.pathname + location.search + "#" + view);
+}
+document.querySelectorAll("[data-view]").forEach(button => button.onclick = () => showView(button.dataset.view));
+showView(currentView);
 const emptyArt = '<svg viewBox="0 0 120 98" fill="none" aria-hidden="true"><ellipse cx="61" cy="83" rx="41" ry="5" fill="#e7e9da" stroke="none"/><g transform="rotate(8 60 50)" stroke="#41523e" stroke-linejoin="round"><rect x="37" y="19" width="48" height="63" rx="4" fill="#c0cba7"/><rect x="32" y="16" width="48" height="63" rx="4" fill="#f6f0d2"/><rect x="37" y="21" width="38" height="52" rx="1" fill="#fffdf2" stroke-width="1.3"/><rect x="44" y="13" width="24" height="9" rx="3" fill="#97ad87"/><path d="m42 36 2 2 4-5m4 3h16m-26 11 2 2 4-5m4 3h13m-23 11 2 2 4-5m4 3h11" stroke-width="1.6"/></g><path d="m91 26 3 6 6 2-6 2-3 6-2-6-6-2 6-2Z" fill="#e8b778" stroke="#65745a" stroke-width="1.3"/><path d="m26 47-7-3m7 11-8 2" stroke="#939f80"/></svg>';
 function element(tag, cls, text) {
   const el = document.createElement(tag);
@@ -43,6 +53,7 @@ function renderSummary() {
       state = "all";
       document.querySelectorAll("[data-state]").forEach(el => el.setAttribute("aria-pressed", String(el.dataset.state === "all")));
       render();
+      showView("orders");
       $("orders").scrollIntoView({ behavior: "smooth", block: "start" });
     };
     buyer.append(button);
@@ -119,10 +130,15 @@ async function load() {
     if (revision !== dataRevision) return;
     items = next;
     loaded = true;
+    $("unlock-msg").textContent = "";
+    $("list-msg").textContent = "";
     rememberAdmin();
     $("unlock").hidden = true;
     $("top").hidden = false;
     $("admin-nav").hidden = false;
+    $("admin-tools").hidden = false;
+    $("device-settings").hidden = false;
+    $("remember-device").checked = isAdminRemembered();
     render();
   } catch (error) {
     if (!loaded) $("unlock-msg").textContent = error.message;
@@ -134,7 +150,23 @@ $("unlock-form").onsubmit = async event => {
   setAdminKey($("admin-key").value);
   const submit = $("unlock-form").querySelector("button");
   submit.disabled = true;
-  try { await load(); } finally { submit.disabled = false; }
+  try {
+    await load();
+    if (loaded) {
+      rememberAdmin($("unlock-remember").checked);
+      $("remember-device").checked = isAdminRemembered();
+    }
+  } finally { submit.disabled = false; }
+};
+$("remember-device").onchange = () => {
+  rememberAdmin($("remember-device").checked);
+  $("remember-device").checked = isAdminRemembered();
+};
+$("sign-out").onclick = () => { forgetAdmin(); location.reload(); };
+$("refresh").onclick = async () => {
+  $("refresh").disabled = true;
+  $("refresh").textContent = "更新中…";
+  try { await load(); } finally { $("refresh").disabled = false; $("refresh").textContent = "重新整理"; }
 };
 document.querySelectorAll("[data-state]").forEach(btn => btn.onclick = () => {
   state = btn.dataset.state; document.querySelectorAll("[data-state]").forEach(el => el.setAttribute("aria-pressed", String(btn === el))); if(loaded) render();

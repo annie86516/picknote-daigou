@@ -1,31 +1,52 @@
 import { config } from "./config.js";
 
 const storageKey = "picknote-admin-" + config.board;
-let adminKey = new URLSearchParams(location.hash.slice(1)).get("admin") || sessionStorage.getItem(storageKey) || "";
+function stored(store) {
+  try { return window[store].getItem(storageKey) || ""; } catch { return ""; }
+}
+let persistent = !!stored("localStorage");
+let adminKey = new URLSearchParams(location.hash.slice(1)).get("admin") || stored("sessionStorage") || stored("localStorage");
 if (location.hash.startsWith("#admin=")) {
   history.replaceState(null, "", location.pathname + location.search);
 }
 export function setAdminKey(value) {
   adminKey = value.trim();
 }
-export function rememberAdmin() {
-  sessionStorage.setItem(storageKey, adminKey);
+export function rememberAdmin(keep = persistent) {
+  persistent = keep;
+  try { sessionStorage.setItem(storageKey, adminKey); } catch {}
+  try {
+    if (keep) localStorage.setItem(storageKey, adminKey);
+    else localStorage.removeItem(storageKey);
+  } catch { persistent = false; }
+}
+export const isAdminRemembered = () => persistent;
+export function forgetAdmin() {
+  adminKey = "";
+  persistent = false;
+  for (const store of ["sessionStorage", "localStorage"]) {
+    try { window[store].removeItem(storageKey); } catch {}
+  }
 }
 export function hasAdminKey() {
   return !!adminKey;
 }
 export async function rpc(name, args) {
+  if (!navigator.onLine) throw new Error("目前沒有網路，請連線後再試。填寫內容會保留在此頁。");
   let response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 18000);
   try {
     response = await fetch(config.url + "/rest/v1/rpc/" + name, {
       method: "POST",
       headers: { apikey: config.key, "content-type": "application/json" },
-      body: JSON.stringify({ p_board: config.board, ...args })
+      body: JSON.stringify({ p_board: config.board, ...args }),
+      signal: controller.signal
     });
-  } catch {
-    throw new Error("連線失敗，請稍後再試。");
-  }
-  const result = await response.json();
+  } catch (error) {
+    throw new Error(error.name === "AbortError" ? "連線逾時，請確認網路後重試。填寫內容尚未送出確認。" : "無法連上資料庫，請稍後重試，或切換 Wi-Fi／行動網路。");
+  } finally { clearTimeout(timer); }
+  const result = await response.json().catch(() => { throw new Error("伺服器暫時無法回應，請稍後再試。"); });
   if (!response.ok) throw new Error(result.message || "無法儲存，請稍後再試。");
   return result;
 }
