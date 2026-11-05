@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f9f8f1"><title>代購手帳｜Picknote</title><link rel="icon" href="./icon.svg"><link rel="stylesheet" href="./styles.css"></head>
+<body><svg class="symbols" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="bag" viewBox="0 0 24 24"><path d="m5 7-1 14h16L19 7H5ZM8 9V6a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+<symbol id="photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="9" r="1.5"/><path d="m4 17 5-5 4 3 3-4 5 6"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="wallet" viewBox="0 0 24 24"><path d="M19 7V4L5 6a2 2 0 0 0-1 2v11a1 1 0 0 0 1 1h15V7H5"/><path d="M20 11h-5v5h5"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="m5 15 11-11 4 4L9 19l-6 2 2-6Zm9-9 4 4"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+</defs></svg>
+<header><div class="bar"><span class="brand"><span class="brandmark"><svg><use href="#bag"/></svg></span>代購手帳 <i>Picknote</i></span></div></header>
+<main id="top"><section class="hero"><div class="hero-copy"><h1>我要登記代購<span>✳</span></h1><p>上傳商品截圖，讓主揪知道你想買什麼。</p></div><img src="./art.svg" alt="" class="hero-art"><div class="stitch"></div></section>
+<div class="buyerwrap"><section class="card" id="add"><div class="cardhead"><span class="square"><svg><use href="#pen"/></svg></span><h2>填寫代購需求</h2></div>
+<form id="form"><label for="file">商品截圖 <b>*</b></label><div class="drop" id="drop"><input type="file" accept="image/jpeg,image/png,image/webp" id="file" required aria-label="上傳商品截圖"><div class="drop-text"><span class="pic"><svg><use href="#photo"/></svg></span><strong>點擊上傳<span> 或拖曳截圖至此</span></strong><small>JPG、PNG、WebP，最大 8 MB</small></div><img id="preview" alt="商品截圖預覽" hidden><span class="replace" hidden>更換截圖</span></div>
+<label for="name">商品名稱 <small>選填</small></label><input id="name" maxlength="80" placeholder="例如：抹茶餅乾禮盒">
+<div class="pair"><div><label for="buyer">購買人 <b>*</b></label><input id="buyer" required maxlength="40" placeholder="你的姓名或暱稱"></div><div><label for="amount">預估金額 <b>*</b></label><div class="amount"><span>NT$</span><input id="amount" type="number" min="0" step="1" max="999999999" inputmode="numeric" placeholder="0" required></div></div></div>
+<button class="save" id="submit">送出代購需求</button><div id="form-msg" role="status"></div></form></section>
+<section class="card" id="receipt" hidden tabindex="-1"><div class="cardhead"><span class="square"><svg><use href="#check"/></svg></span><h2>已收到你的代購需求</h2></div><p id="receipt-text"></p><button class="save" id="again">再登記一件商品</button></section></div></main><script type="module" src="./buyer.js"></script></body></html>
